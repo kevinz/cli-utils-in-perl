@@ -9,14 +9,14 @@ multicores_exporter_4solr
 
 2. Construct query line and shards line,set result format as "csv".
 
-3. Query solr multi cores by using solr provided "shards" parameter,fire request with curl.
+3. Query solr multi cores by using solr provided "shards" parameter,fire request with `curl`.
 
 4. Get result one group by one group and append result to a single file.
 
 
 sftp file fetcher and processer and uploader
 --------------------------------------------
-Both the fetcher and processer can accept argument or &ltSTDIN&gt,so it can be used in shell pipeline.
+Both the fetcher and processer can accept argument or STDIN,so it can be used in shell pipeline.
 
 ###Example:
 >sftp_transfer  -f|file_processor|sftp_transfer -u
