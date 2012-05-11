@@ -1,6 +1,7 @@
 cli-utils-in-perl
 =================
-Some handy command line utils written in perl. 
+Some handy command line utils written in perl.
+
 
 multicores_exporter_4solr
 -------------------------
@@ -11,7 +12,7 @@ multicores_exporter_4solr
 
 sftp file fetcher and processer and uploader
 --------------------------------------------
-Both the fetcher and processer can accept argument or <STDIN>,so it can be used in shell pipeline.
+Both the fetcher and processer can accept argument or &ltSTDIN&gt,so it can be used in shell pipeline.
 example:
 sftp_transfer  -f|file_processor|sftp_transfer -u
 
