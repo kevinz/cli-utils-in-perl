@@ -1,0 +1,91 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use File::Basename;
+
+#modify these settings
+my ($city_code_file,$processed_prefix,$year_index,$city_index,$mail_subj,$mail_to) = ("/home/xxxx.csv","p_","2","3",
+					"Upstream Profilling Processing Error","xxx\@xxx.com");
+
+# ===============================
+# Define error handler 
+# ===============================
+sub err_die{
+	my $subj = $_[0];
+	my $msg = $_[1];
+	print "$msg\n";
+	open(MAIL,"| mail -s $subj $mail_to") || die "mail failed:$!\n";
+	print MAIL "$msg";
+	exit 1;
+}
+
+
+# ===============================
+# Main process 
+# ===============================
+my $len = @ARGV;
+my @files;
+#Read from command line agruments
+if($len){
+	@files = @ARGV;	
+}
+else{
+#Read from stdin
+	 while(my $line  = <>){
+	 	chomp $line;
+	 	@files = split(/ /,$line);
+	 }
+}
+my %citycode = &create_citycode_mapping();
+foreach my $f (@files) {
+	&process($f);
+}
+print "\n";
+# ===============================
+# Main process end
+# ===============================
+
+sub create_citycode_mapping{
+	my %m;
+	open(MAPPING,"<",$city_code_file) or err_die($mail_subj,"Unable to open city code mapping file:$city_code_file");
+	while(my $line = <MAPPING>){
+		chomp($line);
+		my @a = split(/,/,$line);
+		 $m{$a[0]} = $a[1];
+	}
+	close(MAPPING);
+	#return m
+	%m;
+}
+
+sub process{
+  	open(FILE_IN,"<",$_[0]) or err_die($mail_subj,"Unable to open file:$_[0]");
+  	my ($name,$path) = fileparse($_[0]);
+  	my $file_out = $path.$processed_prefix.$name;
+  	open(FILE_OUT,">",$file_out) or err_die($mail_subj,"Unable to open file:$file_out");
+  	my $i;
+  	while(my $line = <FILE_IN>){
+  		my @a;
+  		#head line
+  		if ($i++ == 0){
+  			@a = split(/,/,$line);
+  			$a[$year_index] = "birthDate";
+  			#set separator when printing
+			$" =",";
+	  		print FILE_OUT "@a" or err_die($mail_subj,"Unable to write to file:$file_out");
+	  		next;
+  		}
+  		
+  		# process city	
+  		@a = split(/,/,$line);
+  		my $city = $a[$city_index];
+		$a[$city_index] = $citycode{$city};
+		#set separator when printing
+		$" =",";
+		print FILE_OUT "@a" or err_die($mail_subj,"Unable to write to file:$file_out");
+  	}
+  	close(FILE_IN);
+  	close(FILE_OUT);
+  	print $file_out," ";
+}
+

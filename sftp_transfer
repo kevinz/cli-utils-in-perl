@@ -1,0 +1,115 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Net::SSH2;
+use File::Basename;
+# ===============================
+# Configurations 
+# ===============================
+
+my ($user_name,$host,$port,$pub_key,$pri_key,$rem_dir,$upload_dir,$bak_dir,$local_dir,$file_prefix,$mail_subj,$mail_to) = ("xxx", "1.1.1.2", "22", "/home/xxx/.ssh/id_rsa.pub", 
+	"/home/xxx/.ssh/id_rsa","/opt/xxx/","upp_upload","up_bak","/tmp/up","PROFILE_UPDATE","Upstream Profilling Transfer Error","xxx\@yyy.com");
+
+# ===============================
+# Define error handler 
+# ===============================
+sub err_die{
+	my $subj = $_[0];
+	my $msg = $_[1];
+	print "$msg\n";
+	open(MAIL,"| mail -s $subj $mail_to") || die "mail failed:$!\n";
+	print MAIL "$msg";
+	exit 1;
+}
+
+if($#ARGV<0){
+	&usage();
+}
+else{
+	if ($#ARGV >= 1 and  $ARGV[0] eq "-u"){
+		# remove "-u"
+		shift @ARGV;
+		&upload(@ARGV) ;
+	}
+	if($#ARGV == 0  && $ARGV[0] eq "-f"){
+		&fetch();
+	}
+	if ($#ARGV == 0  && $ARGV[0] eq "-u"){
+		# remove "-u"
+		shift @ARGV;
+		# read from stdin
+		while(my $line  = <>){
+			chomp $line;
+			&upload(split(/ /,$line));
+		 }
+	}
+	&usage();
+}
+
+sub usage {
+	print "Usage:$0 -f|-s [files]\n";
+	exit;
+}
+
+sub fetch {
+	my $ssh2 = &connect();
+	my $sftp = $ssh2->sftp() or err_die($mail_subj,"Unable  to open sftp.");
+	my @to_process = ();
+	my $fh = $sftp->opendir($rem_dir) or err_die($mail_subj,"Unable to open $rem_dir on sftp.");
+
+	while (my $item = $fh->read){
+	        my $name = $item->{name};
+	        push(@to_process,$name) if $name =~ /^${file_prefix}_\d{8}_\d{2}\.csv$/;
+	}
+	# ===============================
+	# Backup files on remote 
+	# ===============================
+	my $chan = $ssh2->channel() or err_die($mail_subj,"Unable to open shell over ssh.");
+	$chan->blocking(1);
+	$chan->shell();
+	print $chan "cp @to_process $bak_dir/\n" or err_die($mail_subj,"Unable to backup @to_process to $bak_dir on sftp.");
+	$chan->close();
+	# ===============================
+	# Copy files back to local from remote 
+	# ===============================
+	my @processed = ();
+	@to_process = sort(@to_process);
+	foreach my $csv (@to_process) {
+	        my ($remote_f,$local_f) = ("$rem_dir/$csv","$local_dir/$csv");
+	        $ssh2->scp_get($remote_f,$local_f) or err_die($mail_subj,"Unable to scp get $remote_f to $local_f");
+	        push(@processed,$local_f);
+	}
+	# ===============================
+	# Output to standard out 
+	# ===============================
+	print "@processed\n";
+	$ssh2->disconnect();
+	exit;
+}
+
+sub upload{
+	my @files = @_;
+	my $ssh2 = &connect();
+
+	# ===============================
+	# Copy files  to remote 
+	# ===============================
+	foreach my $csv (@files) {
+	        next unless -e $csv and -f $csv;
+	        my $remote_f = "$rem_dir/$upload_dir/".basename($csv);
+	        $ssh2->scp_put($csv,$remote_f) or err_die($mail_subj,"Unable to scp put $csv to $remote_f.");
+	}
+	$ssh2->disconnect();
+	exit;
+}
+
+sub connect{
+	my $ssh2 = Net::SSH2->new();
+	Net::SSH2->debug(0);
+
+	$ssh2->connect($host,$port) or err_die($mail_subj,"Unable to connect Host: $host:$port");
+	$ssh2->auth_publickey($user_name,$pub_key,$pri_key) or  err_die($mail_subj, "Unable to login:$user_name");
+	$ssh2;
+}
+
