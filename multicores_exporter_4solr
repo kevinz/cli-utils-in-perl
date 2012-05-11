@@ -1,0 +1,38 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use URI::Encode qw(uri_encode uri_decode);
+
+my $output  = "/tmp/solr_out.csv";
+my ($times,$ip,$port,$start_core,$cores,$rows) = qw(10 192.168.110.32 6986 2601 64 5);
+my $query="operatorId:COMP-khhgm000000 AND optIn:true AND (city:053022*+OR+city:053010*+OR+city:053024*+OR+city:053018*+OR+city:053031*+OR+city:053029*)";
+my $return_fields="msisdn,city";
+my $url="http://$ip:$port/solr/SYS_P$start_core/select/?q=$query&fl=$return_fields&wt=csv&rows=$rows";
+
+my ($shard_len,$last_shard_len) = ($cores/$times,$cores%$times);
+my @core_range = ($start_core..($start_core+$shard_len));
+
+for (my $t = 0; $t < $times; $t++){
+	my $shards = "$ip:$port/solr/SYS_P%d,"x$shard_len;
+	$shards = sprintf($shards,@core_range);
+	@core_range = ($core_range[-1]..$core_range[-1]+$shard_len);
+	&query_shards($shards);
+}
+
+if ($last_shard_len){
+	my $shards = "$ip:$port/solr/SYS_P%d,"x$last_shard_len;
+	$shards = sprintf($shards,@core_range);
+	&query_shards($shards);
+}
+
+
+sub query_shards {
+	my $enurl = uri_encode("$url&shards=$_[0]");
+	open(SOLR,"curl -m 1800 \"$enurl\" | ") || die "Failed: $!\n";
+	open OUT,">>",$output || die "Failed: $!\n";
+	while(<SOLR>){
+		print OUT $_ if (!/$return_fields/);
+	}
+	close SOLR;
+	close OUT;
+}
