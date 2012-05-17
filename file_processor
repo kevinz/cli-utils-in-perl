@@ -65,24 +65,44 @@ sub process{
   	open(FILE_OUT,">",$file_out) or err_die($mail_subj,"Unable to open file:$file_out");
   	my $i;
   	while(my $line = <FILE_IN>){
+  		chomp $line;
   		my @a;
+
+  		chomp $line;
   		#head line
   		if ($i++ == 0){
   			@a = split(/,/,$line);
   			$a[$year_index] = "birthDate";
   			#set separator when printing
 			$" =",";
-	  		print FILE_OUT "@a" or err_die($mail_subj,"Unable to write to file:$file_out");
+	  		print FILE_OUT "@a\n" or err_die($mail_subj,"Unable to write to file:$file_out");
 	  		next;
   		}
   		
   		# process city	
   		@a = split(/,/,$line);
+
+  		# Cause city as last column,in case of addional columns beyond city's index,ignore additional columns
+  		if ($#a != $city_index){
+	  		@a = @a[0..$city_index] ;
+  		}
+
   		my $city = $a[$city_index];
-		$a[$city_index] = $citycode{$city};
+  		if(!$city){
+  			$a[$city_index] = "";
+  		}else{
+			$a[$city_index] = $citycode{$city};
+  		}
+  		# replace with "" for undefined element in @a
+  		foreach my $e (@a){
+  			if(!$e){
+  				$e="";
+  			}
+  		}
 		#set separator when printing
 		$" =",";
-		print FILE_OUT "@a" or err_die($mail_subj,"Unable to write to file:$file_out");
+		print FILE_OUT "@a\n" or err_die($mail_subj,"Unable to write to file:$file_out");
+ 
   	}
   	close(FILE_IN);
   	close(FILE_OUT);
